@@ -1,0 +1,286 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mechamorphosis</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.8.0/lib/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Orbitron', sans-serif;
+        }
+        #canvas-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            color: rgba(0, 200, 255, 0.7);
+            text-align: center;
+            width: 100%;
+            font-size: 16px;
+            text-shadow: 0 0 10px rgba(0, 200, 255, 0.5);
+            pointer-events: none;
+        }
+    </style>
+
+<base target="_self">
+</head>
+<body>
+    <div id="canvas-container">
+        <div id="instructions">Click or tap to transform</div>
+    </div>
+
+    <script>
+        const sketch = (p) => {
+            let transformProgress = 0;
+            let isTransforming = false;
+            let targetProgress = 0;
+            let lastClickTime = 0;
+            let ambientLightColor;
+            let directionalLightColor;
+            let metallicColor;
+            let accentColor;
+            
+            p.setup = () => {
+                let canvas = p.createCanvas(800, 600, p.WEBGL);
+                canvas.parent('canvas-container');
+                
+                // Color scheme
+                ambientLightColor = p.color(20, 30, 40);
+                directionalLightColor = p.color(200, 220, 255);
+                metallicColor = p.color(180, 190, 210);
+                accentColor = p.color(0, 180, 255);
+                
+                p.smooth();
+            };
+            
+            p.draw = () => {
+                // Smooth transformation animation
+                if (Math.abs(transformProgress - targetProgress) > 0.001) {
+                    transformProgress = p.lerp(transformProgress, targetProgress, 0.1);
+                }
+                
+                // Background
+                p.background(10, 15, 20);
+                
+                // Lighting
+                p.ambientLight(ambientLightColor);
+                p.directionalLight(directionalLightColor, -1, 1, -1);
+                p.pointLight(accentColor, 0, -100, 200);
+                
+                // Camera setup
+                p.rotateX(-p.PI/6);
+                p.rotateY(p.sin(p.frameCount * 0.01) * 0.2);
+                p.translate(0, 100, 0);
+                
+                // Draw the transformer
+                drawTransformer();
+                
+                // Grid floor
+                drawGrid();
+            };
+            
+            function drawTransformer() {
+                p.push();
+                
+                // Main body
+                p.specularMaterial(metallicColor);
+                p.shininess(50);
+                
+                // Base transformation
+                let bodyHeight = p.map(transformProgress, 0, 1, 150, 50);
+                let bodyWidth = p.map(transformProgress, 0, 1, 80, 180);
+                let bodyDepth = p.map(transformProgress, 0, 1, 60, 120);
+                
+                // Body
+                p.push();
+                p.translate(0, -bodyHeight/2, 0);
+                p.box(bodyWidth, bodyHeight, bodyDepth);
+                p.pop();
+                
+                // Head (only in robot mode)
+                if (transformProgress < 0.7) {
+                    let headHeight = p.map(transformProgress, 0, 1, 60, 0);
+                    p.push();
+                    p.translate(0, -bodyHeight - headHeight/2 + 5, 0);
+                    p.box(bodyWidth * 0.6, headHeight, bodyDepth * 0.8);
+                    
+                    // Eyes
+                    p.emissiveMaterial(accentColor);
+                    p.translate(0, 0, bodyDepth * 0.4);
+                    p.sphere(8);
+                    p.translate(0, 0, -bodyDepth * 0.8);
+                    p.sphere(8);
+                    p.pop();
+                }
+                
+                // Arms
+                drawArm(-1, transformProgress);
+                drawArm(1, transformProgress);
+                
+                // Legs
+                drawLeg(-1, transformProgress);
+                drawLeg(1, transformProgress);
+                
+                // Wheels (more visible in car mode)
+                if (transformProgress > 0.3) {
+                    let wheelY = p.map(transformProgress, 0.3, 1, bodyHeight/2 - 20, bodyHeight/2 + 10);
+                    let wheelSize = p.map(transformProgress, 0.3, 1, 20, 30);
+                    
+                    // Front wheels
+                    p.push();
+                    p.translate(bodyWidth * 0.4, wheelY, 0);
+                    p.rotateZ(p.PI/2);
+                    p.specularMaterial(50);
+                    p.cylinder(wheelSize, 10, 24, 1);
+                    p.pop();
+                    
+                    p.push();
+                    p.translate(-bodyWidth * 0.4, wheelY, 0);
+                    p.rotateZ(p.PI/2);
+                    p.cylinder(wheelSize, 10, 24, 1);
+                    p.pop();
+                    
+                    // Rear wheels (only fully visible in car mode)
+                    if (transformProgress > 0.6) {
+                        p.push();
+                        p.translate(bodyWidth * 0.4, -wheelY + 20, 0);
+                        p.rotateZ(p.PI/2);
+                        p.cylinder(wheelSize, 10, 24, 1);
+                        p.pop();
+                        
+                        p.push();
+                        p.translate(-bodyWidth * 0.4, -wheelY + 20, 0);
+                        p.rotateZ(p.PI/2);
+                        p.cylinder(wheelSize, 10, 24, 1);
+                        p.pop();
+                    }
+                }
+                
+                p.pop();
+            }
+            
+            function drawArm(side, progress) {
+                p.push();
+                p.translate(side * 60, -80, 0);
+                
+                // Upper arm
+                let upperArmLength = p.map(progress, 0, 1, 100, 40);
+                let upperArmRotation = p.map(progress, 0, 1, 0, side * p.PI/2);
+                p.rotateY(upperArmRotation);
+                
+                p.push();
+                p.rotateZ(p.PI/2);
+                p.cylinder(15, upperArmLength, 8, 1);
+                p.pop();
+                
+                // Lower arm (only in robot mode)
+                if (progress < 0.7) {
+                    p.translate(0, -upperArmLength, 0);
+                    let lowerArmLength = p.map(progress, 0, 1, 80, 0);
+                    p.push();
+                    p.rotateZ(p.PI/2);
+                    p.cylinder(12, lowerArmLength, 8, 1);
+                    p.pop();
+                    
+                    // Hand (only in robot mode)
+                    if (progress < 0.3) {
+                        p.translate(0, -lowerArmLength, 0);
+                        p.push();
+                        p.box(25, 15, 30);
+                        p.pop();
+                    }
+                }
+                
+                p.pop();
+            }
+            
+            function drawLeg(side, progress) {
+                p.push();
+                p.translate(side * 30, 40, 0);
+                
+                // Upper leg
+                let upperLegLength = p.map(progress, 0, 1, 80, 30);
+                let upperLegRotation = p.map(progress, 0, 1, 0, p.PI/2);
+                p.rotateX(upperLegRotation);
+                
+                p.push();
+                p.rotateX(p.PI/2);
+                p.cylinder(18, upperLegLength, 8, 1);
+                p.pop();
+                
+                // Lower leg
+                p.translate(0, upperLegLength, 0);
+                let lowerLegLength = p.map(progress, 0, 1, 70, 20);
+                p.push();
+                p.rotateX(p.PI/2);
+                p.cylinder(15, lowerLegLength, 8, 1);
+                p.pop();
+                
+                // Foot (only in robot mode)
+                if (progress < 0.5) {
+                    p.translate(0, lowerLegLength, 0);
+                    p.push();
+                    p.box(30, 10, 50);
+                    p.pop();
+                }
+                
+                p.pop();
+            }
+            
+            function drawGrid() {
+                p.push();
+                p.translate(0, 150, 0);
+                p.rotateX(p.PI/2);
+                p.noFill();
+                p.stroke(50, 70, 90);
+                p.strokeWeight(1);
+                
+                let size = 500;
+                let cells = 20;
+                let cellSize = size / cells;
+                
+                for (let i = -cells/2; i <= cells/2; i++) {
+                    p.line(i * cellSize, -size/2, i * cellSize, size/2);
+                    p.line(-size/2, i * cellSize, size/2, i * cellSize);
+                }
+                
+                p.pop();
+            }
+            
+            p.mousePressed = () => {
+                // Prevent rapid clicking
+                let now = p.millis();
+                if (now - lastClickTime < 500) return;
+                lastClickTime = now;
+                
+                // Toggle transformation target
+                targetProgress = targetProgress > 0.5 ? 0 : 1;
+            };
+            
+            p.touchStarted = () => {
+                p.mousePressed();
+                return false;
+            };
+            
+            p.windowResized = () => {
+                p.resizeCanvas(p.windowWidth, p.windowHeight);
+            };
+        };
+        
+        new p5(sketch);
+    </script>
+
+</body></html>
